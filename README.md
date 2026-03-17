@@ -57,7 +57,7 @@ flowchart LR
 - **Simulador de vehículos**
 - **Monitor por consola**
 - **Validación funcional automática**
-- **Script de arranque distribuido** para Linux/macOS y **script PowerShell** para Windows
+- **Script de arranque distribuido PowerShell** para Windows
 
 ## Estructura
 
@@ -82,8 +82,8 @@ minehaul-control/
 │   └── validate_mvp.py
 ├── data/
 ├── requirements.txt
-├── start_distributed_mvp.sh       # Linux/macOS
 ├── start_distributed_mvp.ps1      # Windows PowerShell
+├── start_distributed_mvp.sh       # script auxiliar original
 ├── start_mvp.sh
 └── README.md
 ```
@@ -188,54 +188,7 @@ Terminal 7:
 python scripts\console_monitor.py watch
 ```
 
-## Cómo ejecutarlo en Linux/macOS
-
-### Opción rápida
-
-```bash
-cd /path/to/minehaul-control
-./start_distributed_mvp.sh
-```
-
-### Ejecución manual
-
-#### 1) Preparar entorno
-
-```bash
-cd /path/to/minehaul-control
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-#### 2) Levantar servicios
-
-```bash
-source .venv/bin/activate
-uvicorn app.services_traffic_light:app --host 127.0.0.1 --port 8002
-uvicorn app.services_congestion:app --host 127.0.0.1 --port 8003
-uvicorn app.services_report:app --host 127.0.0.1 --port 8004
-uvicorn app.services_ingest:app --host 127.0.0.1 --port 8001
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-#### 3) En otra terminal, correr simulador
-
-```bash
-source .venv/bin/activate
-python scripts/vehicle_simulator.py
-```
-
-#### 4) En otra terminal, abrir monitor
-
-```bash
-source .venv/bin/activate
-python scripts/console_monitor.py watch
-```
-
 ## Comandos útiles del monitor
-
-### Windows PowerShell
 
 Cambiar semáforo:
 ```powershell
@@ -249,34 +202,11 @@ Consultar resumen:
 python scripts\console_monitor.py summary
 ```
 
-### Linux/macOS
-
-Cambiar semáforo:
-```bash
-source .venv/bin/activate
-python scripts/console_monitor.py change-light TL-02 GREEN --by operador-demo
-```
-
-Consultar resumen:
-```bash
-source .venv/bin/activate
-python scripts/console_monitor.py summary
-```
-
 ## Validación funcional automática
-
-### Windows PowerShell
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 python scripts\validate_mvp.py
-```
-
-### Linux/macOS
-
-```bash
-source .venv/bin/activate
-python scripts/validate_mvp.py
 ```
 
 El script:
