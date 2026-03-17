@@ -21,19 +21,25 @@ WS_URL = f"ws://{HOST}:{PORT}/ws/events"
 API_TOKEN = "mvts-demo-token"
 DB_PATH = ROOT / "data" / "mvts_validation.db"
 EVIDENCE_PATH = ROOT / "validation_evidence.json"
+SERVICE_PORTS = {
+    "MVTS_INGEST_URL": PORT + 1,
+    "MVTS_TRAFFIC_LIGHT_URL": PORT + 2,
+    "MVTS_CONGESTION_URL": PORT + 3,
+    "MVTS_REPORT_URL": PORT + 4,
+}
 
 
-def wait_for_http(timeout: float = 15.0) -> None:
+def wait_for_http(url: str, timeout: float = 15.0, headers: dict | None = None) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            response = httpx.get(f"{BASE_URL}/", timeout=1.0)
+            response = httpx.get(url, timeout=1.0, headers=headers)
             if response.status_code == 200:
                 return
         except Exception:
             pass
         time.sleep(0.5)
-    raise RuntimeError("service did not start in time")
+    raise RuntimeError(f"service did not start in time: {url}")
 
 
 async def change_light() -> dict:
@@ -79,6 +85,7 @@ async def run_validation() -> dict:
     return {
         "base_url": BASE_URL,
         "db_path": str(DB_PATH),
+        "service_ports": SERVICE_PORTS,
         "summary_before": summary_before,
         "light_change": light_change,
         "state_after_light": state_after_light,
@@ -100,6 +107,16 @@ async def run_validation() -> dict:
     }
 
 
+def spawn(module: str, port: int, env: dict) -> subprocess.Popen:
+    return subprocess.Popen(
+        [str(UVICORN), module, "--host", HOST, "--port", str(port)],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def main() -> int:
     if DB_PATH.exists():
         DB_PATH.unlink()
@@ -108,18 +125,25 @@ def main() -> int:
     env["MVTS_DB_PATH"] = str(DB_PATH)
     env["PYTHONPATH"] = str(ROOT)
     env["MVTS_BASE_URL"] = BASE_URL
+    env["MVTS_GATEWAY_URL"] = BASE_URL
     env["MVTS_API_TOKEN"] = API_TOKEN
+    for key, port in SERVICE_PORTS.items():
+        env[key] = f"http://{HOST}:{port}"
 
-    server = subprocess.Popen(
-        [str(UVICORN), "app.main:app", "--host", HOST, "--port", str(PORT)],
-        cwd=ROOT,
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    processes: list[subprocess.Popen] = []
     simulator = None
     try:
-        wait_for_http()
+        processes.append(spawn("app.services_traffic_light:app", SERVICE_PORTS["MVTS_TRAFFIC_LIGHT_URL"], env))
+        processes.append(spawn("app.services_congestion:app", SERVICE_PORTS["MVTS_CONGESTION_URL"], env))
+        processes.append(spawn("app.services_report:app", SERVICE_PORTS["MVTS_REPORT_URL"], env))
+        processes.append(spawn("app.services_ingest:app", SERVICE_PORTS["MVTS_INGEST_URL"], env))
+        wait_for_http(
+            f"http://{HOST}:{SERVICE_PORTS['MVTS_TRAFFIC_LIGHT_URL']}/internal/traffic-lights",
+            timeout=15.0,
+            headers={"x-api-token": API_TOKEN},
+        )
+        processes.append(spawn("app.main:app", PORT, env))
+        wait_for_http(f"{BASE_URL}/", timeout=15.0)
         simulator = subprocess.Popen(
             [str(PYTHON), "scripts/vehicle_simulator.py"],
             cwd=ROOT,
@@ -139,11 +163,13 @@ def main() -> int:
                 simulator.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 simulator.kill()
-        server.terminate()
-        try:
-            server.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            server.kill()
+        for process in reversed(processes):
+            process.terminate()
+        for process in reversed(processes):
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
 
 
 if __name__ == "__main__":
