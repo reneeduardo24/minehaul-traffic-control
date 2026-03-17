@@ -57,7 +57,7 @@ flowchart LR
 - **Simulador de vehículos**
 - **Monitor por consola**
 - **Validación funcional automática**
-- **Script de arranque distribuido**
+- **Script de arranque distribuido** para Linux/macOS y **script PowerShell** para Windows
 
 ## Estructura
 
@@ -82,7 +82,8 @@ minehaul-control/
 │   └── validate_mvp.py
 ├── data/
 ├── requirements.txt
-├── start_distributed_mvp.sh
+├── start_distributed_mvp.sh       # Linux/macOS
+├── start_distributed_mvp.ps1      # Windows PowerShell
 ├── start_mvp.sh
 └── README.md
 ```
@@ -101,25 +102,104 @@ minehaul-control/
 
 - Python 3.11+
 
-## Opción rápida
+## Cómo ejecutarlo en Windows
+
+### Opción recomendada: PowerShell
+
+Desde la carpeta del proyecto:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+.\start_distributed_mvp.ps1
+```
+
+Eso:
+- crea el entorno virtual,
+- instala dependencias,
+- levanta los servicios,
+- arranca el simulador,
+- abre el monitor de consola.
+
+> Si PowerShell bloquea scripts, puedes habilitar solo la sesión actual con:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+### Ejecución manual en Windows
+
+Abre varias terminales PowerShell dentro de la carpeta del proyecto.
+
+#### 1) Preparar entorno
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+#### 2) Levantar servicios
+
+Terminal 1:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.services_traffic_light:app --host 127.0.0.1 --port 8002
+```
+
+Terminal 2:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.services_congestion:app --host 127.0.0.1 --port 8003
+```
+
+Terminal 3:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.services_report:app --host 127.0.0.1 --port 8004
+```
+
+Terminal 4:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.services_ingest:app --host 127.0.0.1 --port 8001
+```
+
+Terminal 5:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+#### 3) Correr simulador
+
+Terminal 6:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\vehicle_simulator.py
+```
+
+#### 4) Abrir monitor
+
+Terminal 7:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\console_monitor.py watch
+```
+
+## Cómo ejecutarlo en Linux/macOS
+
+### Opción rápida
 
 ```bash
 cd /path/to/minehaul-control
 ./start_distributed_mvp.sh
 ```
 
-Esto:
-- crea `.venv` si no existe,
-- instala dependencias,
-- levanta los 5 servicios,
-- arranca el simulador,
-- abre el monitor en modo `watch`.
+### Ejecución manual
 
-`./start_mvp.sh` quedó como alias al arranque distribuido.
-
-## Ejecución manual
-
-### 1) Preparar entorno
+#### 1) Preparar entorno
 
 ```bash
 cd /path/to/minehaul-control
@@ -128,7 +208,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2) Levantar servicios
+#### 2) Levantar servicios
 
 ```bash
 source .venv/bin/activate
@@ -139,14 +219,14 @@ uvicorn app.services_ingest:app --host 127.0.0.1 --port 8001
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-### 3) En otra terminal, correr simulador
+#### 3) En otra terminal, correr simulador
 
 ```bash
 source .venv/bin/activate
 python scripts/vehicle_simulator.py
 ```
 
-### 4) En otra terminal, abrir monitor
+#### 4) En otra terminal, abrir monitor
 
 ```bash
 source .venv/bin/activate
@@ -155,15 +235,29 @@ python scripts/console_monitor.py watch
 
 ## Comandos útiles del monitor
 
-### Cambiar semáforo
+### Windows PowerShell
 
+Cambiar semáforo:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\console_monitor.py change-light TL-02 GREEN --by operador-demo
+```
+
+Consultar resumen:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\console_monitor.py summary
+```
+
+### Linux/macOS
+
+Cambiar semáforo:
 ```bash
 source .venv/bin/activate
 python scripts/console_monitor.py change-light TL-02 GREEN --by operador-demo
 ```
 
-### Consultar resumen
-
+Consultar resumen:
 ```bash
 source .venv/bin/activate
 python scripts/console_monitor.py summary
@@ -171,8 +265,16 @@ python scripts/console_monitor.py summary
 
 ## Validación funcional automática
 
+### Windows PowerShell
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\validate_mvp.py
+```
+
+### Linux/macOS
+
 ```bash
-cd /path/to/minehaul-control
 source .venv/bin/activate
 python scripts/validate_mvp.py
 ```
