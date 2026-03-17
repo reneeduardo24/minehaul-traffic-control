@@ -236,20 +236,6 @@ Se dispara un evento `congestion.detected` cuando:
 - la velocidad promedio es `<= 1.0`,
 - la condición dura al menos 5 segundos.
 
-## Sobre la base de datos SQLite
-
-La base **sí es una base de datos real**.
-
-No necesitas instalar un servidor aparte como MySQL o PostgreSQL. En SQLite, la base vive en un **archivo** (`data/mvts.db`) y Python la usa directamente mediante la librería estándar `sqlite3`.
-
-Eso significa:
-- el archivo `.db` **ya es la base de datos**,
-- no hace falta levantar un servicio externo,
-- las tablas se crean automáticamente al arrancar,
-- mientras exista ese archivo, los datos persisten.
-
-En otras palabras: para este proyecto, SQLite es totalmente válida como persistencia real del MVP.
-
 ## Limitaciones actuales
 
 - La distribución sigue siendo **mínima**: múltiples servicios HTTP locales, no mensajería avanzada.
