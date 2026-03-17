@@ -1,27 +1,63 @@
 # MVTS Distributed MVP
 
-MVP ejecutable para un sistema distribuido mínimo de monitoreo de tráfico en mina.
+MVP ejecutable para un **sistema distribuido mínimo** de monitoreo de tráfico en mina.
+
+## Resumen
+
+El proyecto modela un escenario básico de control operativo en mina donde varios servicios cooperan para:
+- recibir posiciones de camiones,
+- detectar congestión,
+- cambiar semáforos,
+- registrar entregas de material,
+- generar reportes,
+- y publicar eventos en tiempo real.
+
+La implementación actual ya está separada en procesos por responsabilidad, de modo que el sistema **se presenta como arquitectura distribuida mínima**, no como un monolito único.
+
+## Arquitectura
+
+Servicios principales:
+- **Gateway** (`app.main`) → API pública, estado agregado, WebSocket
+- **Ingest service** (`app.services_ingest`) → posiciones y entregas
+- **Traffic-light service** (`app.services_traffic_light`) → control de semáforos
+- **Congestion service** (`app.services_congestion`) → detección de congestión
+- **Report service** (`app.services_report`) → resumen y consulta de datos
+
+Documentación de arquitectura:
+- `docs/ARCHITECTURE.md`
+
+### Diagrama rápido
+
+```mermaid
+flowchart LR
+    SIM[Vehicle Simulator] -->|POST /api/vehicles/position| GW[Gateway]
+    SIM -->|POST /api/deliveries| GW
+    MON[Console Monitor] <-->|WS /ws/events| GW
+    MON -->|summary / change-light| GW
+
+    GW --> ING[Ingest Service]
+    GW --> TL[Traffic Light Service]
+    GW --> REP[Report Service]
+
+    ING -->|trigger evaluate| CONG[Congestion Service]
+    ING --> DB[(SQLite)]
+    TL --> DB
+    CONG --> DB
+    REP --> DB
+    ING --> GW
+    TL --> GW
+    CONG --> GW
+```
 
 ## Qué incluye
 
-Arquitectura distribuida mínima con **5 servicios/procesos**:
-
-- **Gateway** (`app.main`)  
-  expone la API pública, mantiene estado agregado y publica eventos WebSocket.
-- **Ingest service** (`app.services_ingest`)  
-  recibe posiciones y entregas.
-- **Traffic-light service** (`app.services_traffic_light`)  
-  administra semáforos y auditoría de cambios.
-- **Congestion service** (`app.services_congestion`)  
-  evalúa congestión por zona.
-- **Report service** (`app.services_report`)  
-  genera reportes desde SQLite.
-
-Además:
-- **Persistencia SQLite** lista desde el arranque (`data/mvts.db`).
-- **Simulador mínimo de vehículos** que publica posiciones y genera entregas.
-- **Monitor por consola** para observar eventos, cambiar semáforos y consultar resumen.
-- **Script simple de arranque distribuido** para demo rápida.
+- **5 servicios/procesos** con responsabilidad separada
+- **Persistencia SQLite** (`data/mvts.db`)
+- **WebSocket** para eventos en tiempo real
+- **Simulador de vehículos**
+- **Monitor por consola**
+- **Validación funcional automática**
+- **Script de arranque distribuido**
 
 ## Estructura
 
@@ -33,10 +69,13 @@ minehaul-control/
 │   ├── services_traffic_light.py  # semáforos
 │   ├── services_congestion.py     # detección de congestión
 │   ├── services_report.py         # reportes
-│   ├── gateway_state.py           # estado agregado para WebSocket/API pública
+│   ├── gateway_state.py           # estado agregado
 │   ├── congestion_runtime.py      # lógica de congestión
 │   ├── models.py                  # contratos de mensajes
+│   ├── service_config.py          # configuración de URLs/tokens
 │   └── db.py                      # SQLite + schema
+├── docs/
+│   └── ARCHITECTURE.md
 ├── scripts/
 │   ├── vehicle_simulator.py
 │   ├── console_monitor.py
@@ -165,6 +204,20 @@ Se dispara un evento `congestion.detected` cuando:
 - la velocidad promedio es `<= 1.0`,
 - la condición dura al menos 5 segundos.
 
+## Sobre la base de datos SQLite
+
+La base **sí es una base de datos real**.
+
+No necesitas instalar un servidor aparte como MySQL o PostgreSQL. En SQLite, la base vive en un **archivo** (`data/mvts.db`) y Python la usa directamente mediante la librería estándar `sqlite3`.
+
+Eso significa:
+- el archivo `.db` **ya es la base de datos**,
+- no hace falta levantar un servicio externo,
+- las tablas se crean automáticamente al arrancar,
+- mientras exista ese archivo, los datos persisten.
+
+En otras palabras: para este proyecto, SQLite es totalmente válida como persistencia real del MVP.
+
 ## Limitaciones actuales
 
 - La distribución sigue siendo **mínima**: múltiples servicios HTTP locales, no mensajería avanzada.
@@ -176,7 +229,8 @@ Se dispara un evento `congestion.detected` cuando:
 
 ## Siguiente mejora natural
 
-- Contenerizar servicios con Docker Compose.
-- Reemplazar SQLite por una BD/cola más alineada a producción.
-- Añadir observabilidad básica por servicio.
-- Separar eventos con broker si la rúbrica lo exige.
+- evidencia visual de demo,
+- documento corto de entrega,
+- Docker Compose,
+- observabilidad básica,
+- broker/event bus si la rúbrica lo exige.
