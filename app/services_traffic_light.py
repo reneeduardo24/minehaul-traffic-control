@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
+from .auth import require_token
 from . import db
 from .models import (
     EventEnvelope,
@@ -14,38 +15,48 @@ from .models import (
     TrafficLightState,
 )
 from .service_config import API_TOKEN, GATEWAY_URL, HEADERS
+from .topology import TRAFFIC_LIGHTS, build_default_traffic_lights
 
 app = FastAPI(title="MVTS Traffic Light Service")
-traffic_lights = {
-    "TL-01": {"zone_id": "Z1", "state": TrafficLightState.GREEN},
-    "TL-02": {"zone_id": "Z2", "state": TrafficLightState.RED},
-}
-
-
-async def require_token(x_api_token: str = Header(default="")) -> None:
-    if x_api_token != API_TOKEN:
-        raise HTTPException(status_code=401, detail="invalid token")
+traffic_lights: dict[str, dict] = {}
 
 
 @app.on_event("startup")
 def startup() -> None:
     db.init_db()
+    defaults = build_default_traffic_lights()
     with db.connect() as conn:
-        for light_id, light in traffic_lights.items():
+        for light_id, light in defaults.items():
             conn.execute(
                 """
                 INSERT INTO traffic_lights (id, zone_id, state, updated_at)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET zone_id=excluded.zone_id, state=excluded.state, updated_at=excluded.updated_at
+                ON CONFLICT(id) DO UPDATE SET zone_id = excluded.zone_id
                 """,
                 (
                     light_id,
                     light["zone_id"],
-                    light["state"].value,
+                    light["state"],
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
+        rows = conn.execute("SELECT id, zone_id, state FROM traffic_lights ORDER BY id").fetchall()
         conn.commit()
+
+    metadata = {light["id"]: light for light in TRAFFIC_LIGHTS}
+    traffic_lights.clear()
+    for row in rows:
+        light_meta = metadata[row["id"]]
+        traffic_lights[row["id"]] = {
+            "zone_id": row["zone_id"],
+            "state": TrafficLightState(row["state"]),
+            "x": light_meta["x"],
+            "y": light_meta["y"],
+            "label": light_meta["label"],
+            "label_dx": light_meta["label_dx"],
+            "label_dy": light_meta["label_dy"],
+            "label_anchor": light_meta["label_anchor"],
+        }
 
 
 @app.get("/internal/traffic-lights", dependencies=[Depends(require_token)])

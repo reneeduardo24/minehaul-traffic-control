@@ -18,6 +18,7 @@ export MVTS_INGEST_URL="${MVTS_INGEST_URL:-http://127.0.0.1:8001}"
 export MVTS_TRAFFIC_LIGHT_URL="${MVTS_TRAFFIC_LIGHT_URL:-http://127.0.0.1:8002}"
 export MVTS_CONGESTION_URL="${MVTS_CONGESTION_URL:-http://127.0.0.1:8003}"
 export MVTS_REPORT_URL="${MVTS_REPORT_URL:-http://127.0.0.1:8004}"
+export PYTHONPATH="${ROOT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 
 uvicorn app.services_traffic_light:app --host 127.0.0.1 --port 8002 &
 TL_PID=$!

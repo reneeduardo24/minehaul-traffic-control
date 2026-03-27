@@ -4,20 +4,16 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI
 
+from .auth import require_token
 from . import db
 from .congestion_runtime import CongestionRuntime
-from .models import CongestionPayload, EventEnvelope
-from .service_config import API_TOKEN, GATEWAY_URL, HEADERS
+from .models import CongestionPayload, EventEnvelope, ZoneEvaluationRequest
+from .service_config import GATEWAY_URL, HEADERS
 
 app = FastAPI(title="MVTS Congestion Service")
 runtime = CongestionRuntime()
-
-
-async def require_token(x_api_token: str = Header(default="")) -> None:
-    if x_api_token != API_TOKEN:
-        raise HTTPException(status_code=401, detail="invalid token")
 
 
 @app.on_event("startup")
@@ -26,8 +22,8 @@ def startup() -> None:
 
 
 @app.post("/internal/evaluate", dependencies=[Depends(require_token)])
-async def evaluate_zone(payload: dict) -> dict:
-    zone_id = payload["zone_id"]
+async def evaluate_zone(payload: ZoneEvaluationRequest) -> dict:
+    zone_id = payload.zone_id
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(f"{GATEWAY_URL}/api/state", headers=HEADERS)
         response.raise_for_status()

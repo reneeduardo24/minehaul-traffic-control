@@ -32,7 +32,9 @@ class GatewayState:
         if event_type == "vehicle.position.updated":
             self.vehicle_positions[payload["vehicle_id"]] = payload
         elif event_type == "traffic_light.changed":
+            current = self.traffic_lights.get(payload["traffic_light_id"], {})
             self.traffic_lights[payload["traffic_light_id"]] = {
+                **current,
                 "zone_id": payload["zone_id"],
                 "state": payload["new_state"],
             }

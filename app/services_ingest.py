@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI
 
+from .auth import require_token
 from . import db
 from .models import EventEnvelope, MaterialDelivery, VehiclePositionPayload
-from .service_config import API_TOKEN, CONGESTION_URL, GATEWAY_URL, HEADERS
+from .service_config import CONGESTION_URL, GATEWAY_URL, HEADERS
 
 app = FastAPI(title="MVTS Ingest Service")
-
-
-async def require_token(x_api_token: str = Header(default="")) -> None:
-    if x_api_token != API_TOKEN:
-        raise HTTPException(status_code=401, detail="invalid token")
 
 
 @app.on_event("startup")

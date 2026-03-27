@@ -4,14 +4,15 @@ import httpx
 from fastapi import (
     Depends,
     FastAPI,
-    Header,
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import require_token
 from .gateway_state import GatewayState
+from .models import MaterialDelivery, TopologyResponse, TrafficLightCommand, VehiclePositionPayload
 from .service_config import (
     API_TOKEN,
     HEADERS,
@@ -19,6 +20,7 @@ from .service_config import (
     REPORT_URL,
     TRAFFIC_LIGHT_URL,
 )
+from .topology import topology_payload
 
 app = FastAPI(title="MVTS Gateway")
 state = GatewayState()
@@ -27,17 +29,11 @@ state = GatewayState()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-async def require_token(x_api_token: str = Header(default="")) -> None:
-    if x_api_token != API_TOKEN:
-        raise HTTPException(status_code=401, detail="invalid token")
-
-
 @app.on_event("startup")
 async def startup() -> None:
     async with httpx.AsyncClient(timeout=5.0) as client:
@@ -58,38 +54,65 @@ def get_state() -> dict:
     return state.snapshot()
 
 
+@app.get("/api/topology", dependencies=[Depends(require_token)], response_model=TopologyResponse)
+def get_topology() -> dict:
+    return topology_payload()
+
+
 @app.post("/api/vehicles/position", dependencies=[Depends(require_token)])
-async def publish_vehicle_position(payload: dict) -> dict:
+async def publish_vehicle_position(payload: VehiclePositionPayload) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(
-            f"{INGEST_URL}/internal/vehicles/position", json=payload, headers=HEADERS
-        )
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = await client.post(
+                f"{INGEST_URL}/internal/vehicles/position",
+                json=payload.model_dump(mode="json"),
+                headers=HEADERS,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=exc.response.text,
+            ) from exc
 
 
 @app.post("/api/deliveries", dependencies=[Depends(require_token)])
-async def create_delivery(delivery: dict) -> dict:
+async def create_delivery(delivery: MaterialDelivery) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(
-            f"{INGEST_URL}/internal/deliveries", json=delivery, headers=HEADERS
-        )
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = await client.post(
+                f"{INGEST_URL}/internal/deliveries",
+                json=delivery.model_dump(mode="json"),
+                headers=HEADERS,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=exc.response.text,
+            ) from exc
 
 
 @app.post("/api/traffic-lights/change", dependencies=[Depends(require_token)])
-async def change_traffic_light(command: dict) -> dict:
+async def change_traffic_light(command: TrafficLightCommand) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(
-            f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights/change",
-            json=command,
-            headers=HEADERS,
-        )
-        if response.status_code == 404:
-            raise HTTPException(status_code=404, detail="traffic light not found")
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = await client.post(
+                f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights/change",
+                json=command.model_dump(mode="json"),
+                headers=HEADERS,
+            )
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="traffic light not found")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=exc.response.text,
+            ) from exc
 
 
 @app.get("/api/reports/material", dependencies=[Depends(require_token)])

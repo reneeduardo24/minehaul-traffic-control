@@ -17,6 +17,7 @@ $env:MVTS_INGEST_URL = if ($env:MVTS_INGEST_URL) { $env:MVTS_INGEST_URL } else {
 $env:MVTS_TRAFFIC_LIGHT_URL = if ($env:MVTS_TRAFFIC_LIGHT_URL) { $env:MVTS_TRAFFIC_LIGHT_URL } else { 'http://127.0.0.1:8002' }
 $env:MVTS_CONGESTION_URL = if ($env:MVTS_CONGESTION_URL) { $env:MVTS_CONGESTION_URL } else { 'http://127.0.0.1:8003' }
 $env:MVTS_REPORT_URL = if ($env:MVTS_REPORT_URL) { $env:MVTS_REPORT_URL } else { 'http://127.0.0.1:8004' }
+$env:PYTHONPATH = if ($env:PYTHONPATH) { "$Root;$env:PYTHONPATH" } else { $Root }
 
 $procs = @()
 

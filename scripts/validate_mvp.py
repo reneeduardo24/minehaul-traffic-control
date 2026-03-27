@@ -50,27 +50,94 @@ def wait_for_http(url: str, timeout: float = 15.0, headers: dict | None = None) 
     raise RuntimeError(f"service did not start in time: {url}")
 
 
-async def change_light() -> dict:
-    await asyncio.sleep(2)
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+async def change_light(traffic_light_id: str, new_state: str, changed_by: str) -> dict:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=15.0) as client:
         response = await client.post(
             "/api/traffic-lights/change",
             headers={"x-api-token": API_TOKEN},
             json={
-                "traffic_light_id": "TL-02",
-                "new_state": "GREEN",
-                "changed_by": "validation-script",
+                "traffic_light_id": traffic_light_id,
+                "new_state": new_state,
+                "changed_by": changed_by,
             },
         )
         return response.json()
 
 
-async def capture_flow(duration: float = 25.0) -> tuple[dict, list[dict], dict]:
+async def post_position(payload: dict) -> dict:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=15.0) as client:
+        response = await client.post(
+            "/api/vehicles/position",
+            headers={"x-api-token": API_TOKEN},
+            json=payload,
+        )
+        return response.json()
+
+
+async def force_congestion() -> None:
+    seeded = [
+        {
+            "vehicle_id": "VAL-01",
+            "zone_id": "Z2",
+            "x": 10.0,
+            "y": 4.5,
+            "speed": 0.2,
+            "destination": "STORAGE-DEPOT-2",
+        },
+        {
+            "vehicle_id": "VAL-02",
+            "zone_id": "Z2",
+            "x": 10.6,
+            "y": 4.5,
+            "speed": 0.2,
+            "destination": "DUMP-2",
+        },
+        {
+            "vehicle_id": "VAL-03",
+            "zone_id": "Z2",
+            "x": 11.2,
+            "y": 4.5,
+            "speed": 0.2,
+            "destination": "CRUSHER-B",
+        },
+    ]
+    await asyncio.sleep(3)
+    for payload in seeded:
+        await post_position(payload)
+    await asyncio.sleep(6)
+    await post_position({**seeded[0], "x": 10.1, "speed": 0.1})
+
+
+async def orchestrate_lights() -> dict:
+    await asyncio.sleep(1)
+    tl01_red = await change_light("TL-01", "RED", "validation-script")
+    tl02_yellow = await change_light("TL-02", "YELLOW", "validation-script")
+    tl03_red = await change_light("TL-03", "RED", "validation-script")
+    tl04_yellow = await change_light("TL-04", "YELLOW", "validation-script")
+    await asyncio.sleep(10)
+    tl01_green = await change_light("TL-01", "GREEN", "validation-script")
+    tl02_green = await change_light("TL-02", "GREEN", "validation-script")
+    tl03_green = await change_light("TL-03", "GREEN", "validation-script")
+    tl04_green = await change_light("TL-04", "GREEN", "validation-script")
+    return {
+        "tl01_red": tl01_red,
+        "tl02_yellow": tl02_yellow,
+        "tl03_red": tl03_red,
+        "tl04_yellow": tl04_yellow,
+        "tl01_green": tl01_green,
+        "tl02_green": tl02_green,
+        "tl03_green": tl03_green,
+        "tl04_green": tl04_green,
+    }
+
+
+async def capture_flow(duration: float = 45.0) -> tuple[dict, list[dict], dict]:
     async with websockets.connect(
         WS_URL, additional_headers={"x-api-token": API_TOKEN}
     ) as websocket:
         bootstrap = json.loads(await websocket.recv())
-        change_task = asyncio.create_task(change_light())
+        change_task = asyncio.create_task(orchestrate_lights())
+        congestion_task = asyncio.create_task(force_congestion())
         events: list[dict] = []
         end = asyncio.get_running_loop().time() + duration
         while asyncio.get_running_loop().time() < end:
@@ -80,12 +147,14 @@ async def capture_flow(duration: float = 25.0) -> tuple[dict, list[dict], dict]:
             except asyncio.TimeoutError:
                 continue
         light_change = await change_task
+        await congestion_task
         return bootstrap, events, light_change
 
 
 async def run_validation() -> dict:
     headers = {"x-api-token": API_TOKEN}
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+        topology = (await client.get("/api/topology", headers=headers)).json()
         summary_before = (
             await client.get("/api/reports/summary", headers=headers)
         ).json()
@@ -101,6 +170,7 @@ async def run_validation() -> dict:
         "db_path": str(DB_PATH),
         "service_ports": SERVICE_PORTS,
         "summary_before": summary_before,
+        "topology": topology,
         "light_change": light_change,
         "state_after_light": state_after_light,
         "summary_after": summary_after,
@@ -116,8 +186,13 @@ async def run_validation() -> dict:
             "traffic_light_event_seen": "traffic_light.changed" in event_types,
             "deliveries_persisted": summary_after.get("delivery_count", 0) >= 1,
             "congestion_persisted": summary_after.get("congestion_count", 0) >= 1,
-            "light_state_changed": state_after_light["traffic_lights"]["TL-02"]["state"]
-            == "GREEN",
+            "topology_has_four_lights": len(topology.get("traffic_lights", [])) == 4,
+            "topology_has_four_routes": len(topology.get("routes", [])) == 4,
+            "topology_has_material_catalog": len(topology.get("materials", [])) == 2,
+            "light_state_changed": all(
+                state_after_light["traffic_lights"][light_id]["state"] == "GREEN"
+                for light_id in ("TL-01", "TL-02", "TL-03", "TL-04")
+            ),
         },
     }
 
