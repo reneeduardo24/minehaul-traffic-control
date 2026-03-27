@@ -4,7 +4,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 
 from .gateway_state import GatewayState
-from .service_config import API_TOKEN, HEADERS, INGEST_URL, TRAFFIC_LIGHT_URL
+from .service_config import API_TOKEN, HEADERS, INGEST_URL, REPORT_URL, TRAFFIC_LIGHT_URL
 
 app = FastAPI(title="MVTS Gateway")
 state = GatewayState()
@@ -55,6 +55,22 @@ async def change_traffic_light(command: dict) -> dict:
         response = await client.post(f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights/change", json=command, headers=HEADERS)
         if response.status_code == 404:
             raise HTTPException(status_code=404, detail="traffic light not found")
+        response.raise_for_status()
+        return response.json()
+
+
+@app.get("/api/reports/material", dependencies=[Depends(require_token)])
+async def material_report(period: str = "day") -> dict:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{REPORT_URL}/internal/reports/material", params={"period": period}, headers=HEADERS)
+        response.raise_for_status()
+        return response.json()
+
+
+@app.get("/api/reports/congestions", dependencies=[Depends(require_token)])
+async def congestion_report() -> dict:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{REPORT_URL}/internal/reports/congestions", headers=HEADERS)
         response.raise_for_status()
         return response.json()
 

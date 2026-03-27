@@ -51,6 +51,18 @@ async def summary() -> None:
         print(json.dumps(response.json(), indent=2))
 
 
+async def material_report(period: str) -> None:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+        response = await client.get("/api/reports/material", params={"period": period}, headers={"x-api-token": API_TOKEN})
+        print(json.dumps(response.json(), indent=2))
+
+
+async def congestions_report() -> None:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+        response = await client.get("/api/reports/congestions", headers={"x-api-token": API_TOKEN})
+        print(json.dumps(response.json(), indent=2))
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description="MVTS console monitor")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -62,6 +74,12 @@ async def main() -> None:
     change.add_argument("--by", default="central-operator")
 
     subparsers.add_parser("summary")
+
+    material = subparsers.add_parser("report-material")
+    material.add_argument("period", choices=["day", "week", "month"])
+
+    subparsers.add_parser("report-congestions")
+
     args = parser.parse_args()
 
     if args.command == "watch":
@@ -70,6 +88,10 @@ async def main() -> None:
         await change_light(args.traffic_light_id, args.new_state, args.by)
     elif args.command == "summary":
         await summary()
+    elif args.command == "report-material":
+        await material_report(args.period)
+    elif args.command == "report-congestions":
+        await congestions_report()
 
 
 if __name__ == "__main__":

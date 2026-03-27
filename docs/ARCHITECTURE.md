@@ -98,7 +98,7 @@ flowchart LR
 
     GW -->|forward position/delivery| ING[Ingest Service]
     GW -->|forward traffic-light change| TL[Traffic Light Service]
-    GW -->|GET summary| REP[Report Service]
+    GW -->|GET reports| REP[Report Service]
 
     ING -->|event: vehicle.position.updated| GW
     ING -->|event: delivery.created| GW
@@ -141,35 +141,34 @@ flowchart LR
 5. El gateway actualiza su estado agregado y retransmite el evento.
 
 ### Flujo de reportes
-1. El operador consulta resumen.
-2. El gateway solicita el resumen al report service.
-3. El report service consulta SQLite.
+1. El operador consulta el resumen, reportes de material (día, semana, mes) o historial de congestión.
+2. El gateway solicita la información al report service.
+3. El report service consulta SQLite con los filtros de tiempo necesarios.
 4. El resultado vuelve al operador por la API pública.
 
-## Persistencia
+## Mecanismos de Comunicación y Seguridad
 
-Se usa **SQLite** como base de datos persistente del MVP.
+Para cumplir con los requisitos de un sistema distribuido robusto y seguro, se han elegido los siguientes mecanismos:
 
-Tablas principales:
-- `traffic_lights`
-- `material_deliveries`
-- `congestion_events`
-- `traffic_light_audit`
+### 1. Comunicación: HTTP/REST y WebSockets
 
-### Justificación
+- **HTTP/REST (Sincrónico):** Se utiliza para la mayoría de las interacciones entre servicios (p. ej., el Gateway delegando una posición al Ingest Service). 
+    - *Justificación:* Es un estándar de la industria, fácil de depurar, y permite una integración sencilla entre servicios desacoplados. Para este MVP, la latencia de HTTP es aceptable y simplifica el manejo de errores mediante códigos de estado (200, 401, 404).
+- **WebSockets (Asincrónico/Tiempo Real):** Se utiliza para la difusión de eventos desde el Gateway hacia los monitores de consola.
+    - *Justificación:* El requisito de "monitoreo en tiempo real" exige que el servidor pueda empujar (push) datos al cliente sin que este tenga que preguntar constantemente (polling). WebSockets mantiene una conexión abierta eficiente para este propósito.
 
-SQLite se eligió porque:
-- simplifica la ejecución local,
-- no requiere servidor adicional,
-- permite persistencia real en archivo,
-- reduce complejidad para una demo académica.
+### 2. Seguridad: Token-based Authentication (API Tokens)
 
-### Limitación reconocida
+- Se implementó un esquema de seguridad basado en un **Token Estático en el Header (`x-api-token`)**.
+- *Justificación:* 
+    - **Aislamiento:** Protege los servicios de accesos no autorizados externos.
+    - **Simplicidad para MVP:** Dado que el enfoque es la arquitectura distribuida y no la gestión de identidades compleja (como OAuth2 o JWT), un token compartido demuestra el concepto de "mecanismo de seguridad adecuado" para validar que el emisor de la petición es un componente confiable del sistema.
+    - **Consistencia:** Todas las llamadas inter-servicios y de la API pública requieren este token, asegurando que ningún componente quede expuesto sin validación.
 
-En esta versión, varios servicios comparten la misma base SQLite. Eso es válido para un MVP académico, pero en una arquitectura de producción normalmente se evaluaría:
-- una BD dedicada por servicio,
-- un broker de eventos,
-- o una capa más robusta de integración.
+### 3. Persistencia: SQLite
+
+- Se utiliza una base de datos SQLite compartida para este MVP.
+- *Justificación:* Facilita la portabilidad y ejecución inmediata del proyecto sin configurar servidores de bases de datos complejos, manteniendo la capacidad de realizar consultas SQL relacionales para los reportes gerenciales (día, semana, mes).
 
 ## Por qué sí cuenta como sistema distribuido mínimo
 

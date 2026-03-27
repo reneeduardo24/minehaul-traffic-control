@@ -196,10 +196,22 @@ Cambiar semáforo:
 python scripts\console_monitor.py change-light TL-02 GREEN --by operador-demo
 ```
 
-Consultar resumen:
+Consultar resumen general:
 ```powershell
 .\.venv\Scripts\Activate.ps1
 python scripts\console_monitor.py summary
+```
+
+Consultar reporte de material (day, week, month):
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\console_monitor.py report-material day
+```
+
+Consultar historial de congestión:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\console_monitor.py report-congestions
 ```
 
 ## Validación funcional automática
@@ -243,7 +255,6 @@ Se dispara un evento `congestion.detected` cuando:
 - No hay autenticación real de usuarios, solo token estático de demo.
 - El simulador usa rutas fijas en memoria.
 - No hay mapa gráfico ni UI web.
-- El reporte es un resumen simple.
 
 ## Siguiente mejora natural
 
