@@ -12,8 +12,8 @@ import httpx
 import websockets
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / ".venv" / "bin" / "python"
-UVICORN = ROOT / ".venv" / "bin" / "uvicorn"
+PYTHON = ROOT / ".venv" / "Scripts" / "python.exe" if os.name == "nt" else ROOT / ".venv" / "bin" / "python"
+UVICORN = ROOT / ".venv" / "Scripts" / "uvicorn.exe" if os.name == "nt" else ROOT / ".venv" / "bin" / "uvicorn"
 HOST = "127.0.0.1"
 PORT = int(os.getenv("MVTS_VALIDATION_PORT", "8010"))
 BASE_URL = f"http://{HOST}:{PORT}"
@@ -57,8 +57,8 @@ async def change_light() -> dict:
         return response.json()
 
 
-async def capture_flow(duration: float = 11.0) -> tuple[dict, list[dict], dict]:
-    async with websockets.connect(WS_URL) as websocket:
+async def capture_flow(duration: float = 25.0) -> tuple[dict, list[dict], dict]:
+    async with websockets.connect(WS_URL, additional_headers={"x-api-token": API_TOKEN}) as websocket:
         bootstrap = json.loads(await websocket.recv())
         change_task = asyncio.create_task(change_light())
         events: list[dict] = []
@@ -79,7 +79,7 @@ async def run_validation() -> dict:
         summary_before = (await client.get("/api/reports/summary", headers=headers)).json()
     bootstrap, events, light_change = await capture_flow()
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
-        state_after_light = (await client.get("/api/state")).json()
+        state_after_light = (await client.get("/api/state", headers=headers)).json()
         summary_after = (await client.get("/api/reports/summary", headers=headers)).json()
     event_types = [event.get("event_type") for event in events]
     return {
@@ -112,8 +112,8 @@ def spawn(module: str, port: int, env: dict) -> subprocess.Popen:
         [str(UVICORN), module, "--host", HOST, "--port", str(port)],
         cwd=ROOT,
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
 
@@ -148,8 +148,8 @@ def main() -> int:
             [str(PYTHON), "scripts/vehicle_simulator.py"],
             cwd=ROOT,
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         evidence = asyncio.run(run_validation())
         EVIDENCE_PATH.write_text(json.dumps(evidence, indent=2), encoding="utf-8")

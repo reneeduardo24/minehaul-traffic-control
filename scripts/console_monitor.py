@@ -19,7 +19,7 @@ def now() -> str:
 
 
 async def watch() -> None:
-    async with websockets.connect(WS_URL) as websocket:
+    async with websockets.connect(WS_URL, additional_headers={"x-api-token": API_TOKEN}) as websocket:
         bootstrap = json.loads(await websocket.recv())
         print(f"[{now()}] conectado al monitor MVTS")
         print(json.dumps(bootstrap, indent=2))

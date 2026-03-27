@@ -9,7 +9,7 @@ from .service_config import API_TOKEN
 app = FastAPI(title="MVTS Report Service")
 
 
-def require_token(x_api_token: str = Header(default="")) -> None:
+async def require_token(x_api_token: str = Header(default="")) -> None:
     if x_api_token != API_TOKEN:
         raise HTTPException(status_code=401, detail="invalid token")
 

@@ -9,7 +9,7 @@ from .services_gateway import app as gateway_app, state
 app = gateway_app
 
 
-def require_token(x_api_token: str = Header(default="")) -> None:
+async def require_token(x_api_token: str = Header(default="")) -> None:
     if x_api_token != API_TOKEN:
         raise HTTPException(status_code=401, detail="invalid token")
 

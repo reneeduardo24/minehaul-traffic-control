@@ -10,7 +10,7 @@ app = FastAPI(title="MVTS Gateway")
 state = GatewayState()
 
 
-def require_token(x_api_token: str = Header(default="")) -> None:
+async def require_token(x_api_token: str = Header(default="")) -> None:
     if x_api_token != API_TOKEN:
         raise HTTPException(status_code=401, detail="invalid token")
 
@@ -28,7 +28,7 @@ def root() -> dict:
     return {"name": "MVTS Distributed Gateway", "status": "ok"}
 
 
-@app.get("/api/state")
+@app.get("/api/state", dependencies=[Depends(require_token)])
 def get_state() -> dict:
     return state.snapshot()
 
@@ -83,6 +83,11 @@ async def receive_event(event: dict) -> dict:
 
 @app.websocket("/ws/events")
 async def events_ws(websocket: WebSocket) -> None:
+    token = websocket.headers.get("x-api-token") or websocket.query_params.get("token")
+    if token != API_TOKEN:
+        await websocket.close(code=1008)
+        return
+        
     await state.register_connection(websocket)
     try:
         while True:

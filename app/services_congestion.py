@@ -15,7 +15,7 @@ app = FastAPI(title="MVTS Congestion Service")
 runtime = CongestionRuntime()
 
 
-def require_token(x_api_token: str = Header(default="")) -> None:
+async def require_token(x_api_token: str = Header(default="")) -> None:
     if x_api_token != API_TOKEN:
         raise HTTPException(status_code=401, detail="invalid token")
 
@@ -29,7 +29,7 @@ def startup() -> None:
 async def evaluate_zone(payload: dict) -> dict:
     zone_id = payload["zone_id"]
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{GATEWAY_URL}/api/state")
+        response = await client.get(f"{GATEWAY_URL}/api/state", headers=HEADERS)
         response.raise_for_status()
         positions = [v for v in response.json()["vehicle_positions"].values() if v["zone_id"] == zone_id]
 
