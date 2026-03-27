@@ -28,7 +28,11 @@ async def ingest_vehicle_position(payload: VehiclePositionPayload) -> dict:
         payload=payload.model_dump(mode="json"),
     )
     async with httpx.AsyncClient(timeout=10.0) as client:
-        gateway_response = await client.post(f"{GATEWAY_URL}/internal/events", json=position_event.model_dump(mode="json"), headers=HEADERS)
+        gateway_response = await client.post(
+            f"{GATEWAY_URL}/internal/events",
+            json=position_event.model_dump(mode="json"),
+            headers=HEADERS,
+        )
         gateway_response.raise_for_status()
         congestion_response = await client.post(
             f"{CONGESTION_URL}/internal/evaluate",
@@ -67,6 +71,10 @@ async def ingest_delivery(delivery: MaterialDelivery) -> dict:
         payload=delivery.model_dump(mode="json"),
     )
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(f"{GATEWAY_URL}/internal/events", json=event.model_dump(mode="json"), headers=HEADERS)
+        response = await client.post(
+            f"{GATEWAY_URL}/internal/events",
+            json=event.model_dump(mode="json"),
+            headers=HEADERS,
+        )
         response.raise_for_status()
     return {"accepted": True, "delivery_id": delivery.delivery_id}

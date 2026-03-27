@@ -31,7 +31,11 @@ async def evaluate_zone(payload: dict) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(f"{GATEWAY_URL}/api/state", headers=HEADERS)
         response.raise_for_status()
-        positions = [v for v in response.json()["vehicle_positions"].values() if v["zone_id"] == zone_id]
+        positions = [
+            v
+            for v in response.json()["vehicle_positions"].values()
+            if v["zone_id"] == zone_id
+        ]
 
     if not positions:
         runtime.clear_zone(zone_id)
@@ -62,6 +66,10 @@ async def evaluate_zone(payload: dict) -> dict:
         )
         conn.commit()
     async with httpx.AsyncClient(timeout=10.0) as client:
-        gateway_response = await client.post(f"{GATEWAY_URL}/internal/events", json=event.model_dump(mode="json"), headers=HEADERS)
+        gateway_response = await client.post(
+            f"{GATEWAY_URL}/internal/events",
+            json=event.model_dump(mode="json"),
+            headers=HEADERS,
+        )
         gateway_response.raise_for_status()
     return {"event": event.model_dump(mode="json")}

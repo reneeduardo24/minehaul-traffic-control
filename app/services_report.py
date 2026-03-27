@@ -21,8 +21,12 @@ def startup() -> None:
 
 @app.get("/internal/reports/summary", dependencies=[Depends(require_token)])
 def summary_report() -> dict:
-    deliveries = db.fetch_all("SELECT * FROM material_deliveries ORDER BY delivered_at DESC")
-    congestions = db.fetch_all("SELECT * FROM congestion_events ORDER BY created_at DESC")
+    deliveries = db.fetch_all(
+        "SELECT * FROM material_deliveries ORDER BY delivered_at DESC"
+    )
+    congestions = db.fetch_all(
+        "SELECT * FROM congestion_events ORDER BY created_at DESC"
+    )
     by_material = Counter(row["material_type"] for row in deliveries)
     return {
         "delivery_count": len(deliveries),

@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
 
 from .gateway_state import GatewayState
-from .service_config import API_TOKEN, HEADERS, INGEST_URL, REPORT_URL, TRAFFIC_LIGHT_URL
+from .service_config import (
+    API_TOKEN,
+    HEADERS,
+    INGEST_URL,
+    REPORT_URL,
+    TRAFFIC_LIGHT_URL,
+)
 
 app = FastAPI(title="MVTS Gateway")
 state = GatewayState()
@@ -18,7 +31,9 @@ async def require_token(x_api_token: str = Header(default="")) -> None:
 @app.on_event("startup")
 async def startup() -> None:
     async with httpx.AsyncClient(timeout=5.0) as client:
-        response = await client.get(f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights", headers=HEADERS)
+        response = await client.get(
+            f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights", headers=HEADERS
+        )
         response.raise_for_status()
         await state.set_traffic_lights(response.json()["traffic_lights"])
 
@@ -36,7 +51,9 @@ def get_state() -> dict:
 @app.post("/api/vehicles/position", dependencies=[Depends(require_token)])
 async def publish_vehicle_position(payload: dict) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(f"{INGEST_URL}/internal/vehicles/position", json=payload, headers=HEADERS)
+        response = await client.post(
+            f"{INGEST_URL}/internal/vehicles/position", json=payload, headers=HEADERS
+        )
         response.raise_for_status()
         return response.json()
 
@@ -44,7 +61,9 @@ async def publish_vehicle_position(payload: dict) -> dict:
 @app.post("/api/deliveries", dependencies=[Depends(require_token)])
 async def create_delivery(delivery: dict) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(f"{INGEST_URL}/internal/deliveries", json=delivery, headers=HEADERS)
+        response = await client.post(
+            f"{INGEST_URL}/internal/deliveries", json=delivery, headers=HEADERS
+        )
         response.raise_for_status()
         return response.json()
 
@@ -52,7 +71,11 @@ async def create_delivery(delivery: dict) -> dict:
 @app.post("/api/traffic-lights/change", dependencies=[Depends(require_token)])
 async def change_traffic_light(command: dict) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights/change", json=command, headers=HEADERS)
+        response = await client.post(
+            f"{TRAFFIC_LIGHT_URL}/internal/traffic-lights/change",
+            json=command,
+            headers=HEADERS,
+        )
         if response.status_code == 404:
             raise HTTPException(status_code=404, detail="traffic light not found")
         response.raise_for_status()
@@ -62,7 +85,11 @@ async def change_traffic_light(command: dict) -> dict:
 @app.get("/api/reports/material", dependencies=[Depends(require_token)])
 async def material_report(period: str = "day") -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{REPORT_URL}/internal/reports/material", params={"period": period}, headers=HEADERS)
+        response = await client.get(
+            f"{REPORT_URL}/internal/reports/material",
+            params={"period": period},
+            headers=HEADERS,
+        )
         response.raise_for_status()
         return response.json()
 
@@ -70,7 +97,9 @@ async def material_report(period: str = "day") -> dict:
 @app.get("/api/reports/congestions", dependencies=[Depends(require_token)])
 async def congestion_report() -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{REPORT_URL}/internal/reports/congestions", headers=HEADERS)
+        response = await client.get(
+            f"{REPORT_URL}/internal/reports/congestions", headers=HEADERS
+        )
         response.raise_for_status()
         return response.json()
 
@@ -87,7 +116,7 @@ async def events_ws(websocket: WebSocket) -> None:
     if token != API_TOKEN:
         await websocket.close(code=1008)
         return
-        
+
     await state.register_connection(websocket)
     try:
         while True:

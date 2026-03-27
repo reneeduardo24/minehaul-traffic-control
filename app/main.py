@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, Header, HTTPException
 
 from .service_config import API_TOKEN, HEADERS, REPORT_URL
-from .services_gateway import app as gateway_app, state
+from .services_gateway import app as gateway_app
 
 app = gateway_app
 
@@ -17,6 +17,8 @@ async def require_token(x_api_token: str = Header(default="")) -> None:
 @app.get("/api/reports/summary", dependencies=[Depends(require_token)])
 async def summary_report() -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{REPORT_URL}/internal/reports/summary", headers=HEADERS)
+        response = await client.get(
+            f"{REPORT_URL}/internal/reports/summary", headers=HEADERS
+        )
         response.raise_for_status()
         return response.json()

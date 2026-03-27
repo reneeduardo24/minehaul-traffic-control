@@ -7,7 +7,12 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from . import db
-from .models import EventEnvelope, TrafficLightChangedPayload, TrafficLightCommand, TrafficLightState
+from .models import (
+    EventEnvelope,
+    TrafficLightChangedPayload,
+    TrafficLightCommand,
+    TrafficLightState,
+)
 from .service_config import API_TOKEN, GATEWAY_URL, HEADERS
 
 app = FastAPI(title="MVTS Traffic Light Service")
@@ -33,7 +38,12 @@ def startup() -> None:
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET zone_id=excluded.zone_id, state=excluded.state, updated_at=excluded.updated_at
                 """,
-                (light_id, light["zone_id"], light["state"].value, datetime.now(timezone.utc).isoformat()),
+                (
+                    light_id,
+                    light["zone_id"],
+                    light["state"].value,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
             )
         conn.commit()
 
@@ -89,6 +99,10 @@ async def change_traffic_light(command: TrafficLightCommand) -> dict:
         payload=payload.model_dump(mode="json"),
     )
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(f"{GATEWAY_URL}/internal/events", json=event.model_dump(mode="json"), headers=HEADERS)
+        response = await client.post(
+            f"{GATEWAY_URL}/internal/events",
+            json=event.model_dump(mode="json"),
+            headers=HEADERS,
+        )
         response.raise_for_status()
     return {"accepted": True, "event": event.model_dump(mode="json")}

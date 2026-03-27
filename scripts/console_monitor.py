@@ -19,7 +19,9 @@ def now() -> str:
 
 
 async def watch() -> None:
-    async with websockets.connect(WS_URL, additional_headers={"x-api-token": API_TOKEN}) as websocket:
+    async with websockets.connect(
+        WS_URL, additional_headers={"x-api-token": API_TOKEN}
+    ) as websocket:
         bootstrap = json.loads(await websocket.recv())
         print(f"[{now()}] conectado al monitor MVTS")
         print(json.dumps(bootstrap, indent=2))
@@ -47,19 +49,27 @@ async def change_light(traffic_light_id: str, new_state: str, changed_by: str) -
 
 async def summary() -> None:
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
-        response = await client.get("/api/reports/summary", headers={"x-api-token": API_TOKEN})
+        response = await client.get(
+            "/api/reports/summary", headers={"x-api-token": API_TOKEN}
+        )
         print(json.dumps(response.json(), indent=2))
 
 
 async def material_report(period: str) -> None:
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
-        response = await client.get("/api/reports/material", params={"period": period}, headers={"x-api-token": API_TOKEN})
+        response = await client.get(
+            "/api/reports/material",
+            params={"period": period},
+            headers={"x-api-token": API_TOKEN},
+        )
         print(json.dumps(response.json(), indent=2))
 
 
 async def congestions_report() -> None:
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
-        response = await client.get("/api/reports/congestions", headers={"x-api-token": API_TOKEN})
+        response = await client.get(
+            "/api/reports/congestions", headers={"x-api-token": API_TOKEN}
+        )
         print(json.dumps(response.json(), indent=2))
 
 

@@ -78,11 +78,18 @@ class AppState:
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET zone_id=excluded.zone_id, state=excluded.state, updated_at=excluded.updated_at
                     """,
-                    (light_id, light["zone_id"], light["state"].value, datetime.now(timezone.utc).isoformat()),
+                    (
+                        light_id,
+                        light["zone_id"],
+                        light["state"].value,
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
                 )
             conn.commit()
 
-    async def handle_vehicle_position(self, payload: VehiclePositionPayload) -> EventEnvelope | None:
+    async def handle_vehicle_position(
+        self, payload: VehiclePositionPayload
+    ) -> EventEnvelope | None:
         self.vehicle_positions[payload.vehicle_id] = payload.model_dump(mode="json")
         event = EventEnvelope(
             event_type="vehicle.position.updated",
@@ -117,7 +124,9 @@ class AppState:
         )
         await self.broadcast(event)
 
-    async def handle_traffic_light_command(self, command: TrafficLightCommand) -> EventEnvelope:
+    async def handle_traffic_light_command(
+        self, command: TrafficLightCommand
+    ) -> EventEnvelope:
         light = self.traffic_lights[command.traffic_light_id]
         previous_state = light["state"]
         light["state"] = command.new_state
@@ -156,7 +165,9 @@ class AppState:
         return event
 
     async def evaluate_congestion(self, zone_id: str) -> EventEnvelope | None:
-        vehicles = [v for v in self.vehicle_positions.values() if v["zone_id"] == zone_id]
+        vehicles = [
+            v for v in self.vehicle_positions.values() if v["zone_id"] == zone_id
+        ]
         if not vehicles:
             self.zone_slow_since.pop(zone_id, None)
             self.congestion_active.discard(zone_id)
