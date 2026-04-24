@@ -230,7 +230,7 @@ El script:
 - consulta resumen,
 - genera `validation_evidence.json`.
 
-## API pública mínima
+## API pública
 
 Token demo requerido en header `x-api-token: mvts-demo-token` para operaciones sensibles.
 
@@ -240,26 +240,3 @@ Token demo requerido en header `x-api-token: mvts-demo-token` para operaciones s
 - `GET /api/reports/summary`
 - `GET /api/state`
 - `WS /ws/events`
-
-## Regla de congestión MVP
-
-Se dispara un evento `congestion.detected` cuando:
-- hay 3 o más vehículos en la misma zona,
-- la velocidad promedio es `<= 1.0`,
-- la condición dura al menos 5 segundos.
-
-## Limitaciones actuales
-
-- La distribución sigue siendo **mínima**: múltiples servicios HTTP locales, no mensajería avanzada.
-- La base sigue siendo **SQLite compartida** para simplificar la demo.
-- No hay autenticación real de usuarios, solo token estático de demo.
-- El simulador usa rutas fijas en memoria.
-- No hay mapa gráfico ni UI web.
-
-## Siguiente mejora natural
-
-- evidencia visual de demo,
-- documento corto de entrega,
-- Docker Compose,
-- observabilidad básica,
-- broker/event bus si la rúbrica lo exige.
