@@ -17,8 +17,22 @@ class TrafficLightState(str, Enum):
     GREEN = "GREEN"
 
 
+class CongestionSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class EventType(str, Enum):
+    VEHICLE_POSITION_UPDATED = "vehicle.position.updated"
+    TRAFFIC_LIGHT_CHANGED = "traffic_light.changed"
+    DELIVERY_CREATED = "delivery.created"
+    CONGESTION_DETECTED = "congestion.detected"
+    CONGESTION_CLEARED = "congestion.cleared"
+
+
 class EventEnvelope(BaseModel):
-    event_type: str
+    event_type: EventType
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     source: str
@@ -33,6 +47,7 @@ class VehiclePositionPayload(BaseModel):
     speed: float
     destination: str
     material_type: str | None = None
+    observed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("zone_id")
     @classmethod
@@ -62,6 +77,7 @@ class TrafficLightChangedPayload(BaseModel):
     previous_state: TrafficLightState
     new_state: TrafficLightState
     changed_by: str
+    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class CongestionPayload(BaseModel):
@@ -69,7 +85,9 @@ class CongestionPayload(BaseModel):
     vehicle_count: int
     avg_speed: float
     duration_seconds: int
-    severity: Literal["LOW", "MEDIUM", "HIGH"]
+    severity: CongestionSeverity
+    active: bool
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class MaterialDelivery(BaseModel):
@@ -109,15 +127,8 @@ class TrafficLightCommand(BaseModel):
     changed_by: str = "central-operator"
 
 
-class ZoneEvaluationRequest(BaseModel):
-    zone_id: str
-
-    @field_validator("zone_id")
-    @classmethod
-    def validate_zone_id(cls, value: str) -> str:
-        if value not in VALID_ZONE_IDS:
-            raise ValueError(f"invalid zone_id: {value}")
-        return value
+class BrokerSubscriptionRequest(BaseModel):
+    subscribe: list[EventType]
 
 
 class TopologyResponse(BaseModel):

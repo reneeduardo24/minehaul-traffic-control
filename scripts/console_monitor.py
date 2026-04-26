@@ -4,77 +4,96 @@ import argparse
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 import websockets
+from websockets.exceptions import ConnectionClosed
 
-BASE_URL = os.getenv("MVTS_BASE_URL", "http://127.0.0.1:8000")
-WS_URL = os.getenv("MVTS_WS_URL", "ws://127.0.0.1:8000/ws/events")
-API_TOKEN = os.getenv("MVTS_API_TOKEN", "mvts-demo-token")
+from app.service_config import GATEWAY_URL, GATEWAY_WS_URL, MANAGER_TOKEN, OPERATOR_TOKEN, bearer_headers
 
 
 def now() -> str:
-    return datetime.utcnow().strftime("%H:%M:%S")
+    return datetime.now(timezone.utc).strftime("%H:%M:%S")
 
 
-async def watch() -> None:
-    async with websockets.connect(
-        WS_URL, additional_headers={"x-api-token": API_TOKEN}
-    ) as websocket:
-        bootstrap = json.loads(await websocket.recv())
-        print(f"[{now()}] conectado al monitor MVTS")
-        print(json.dumps(bootstrap, indent=2))
-        while True:
-            await websocket.send("ping")
-            raw = await websocket.recv()
-            event = json.loads(raw)
-            print(f"[{now()}] {event['event_type']} -> {json.dumps(event['payload'])}")
-            await asyncio.sleep(1)
+def token_for_actor(actor: str) -> str:
+    return MANAGER_TOKEN if actor == "manager" else OPERATOR_TOKEN
 
 
-async def change_light(traffic_light_id: str, new_state: str, changed_by: str) -> None:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+async def watch(actor: str) -> None:
+    while True:
+        try:
+            async with websockets.connect(
+                GATEWAY_WS_URL,
+                additional_headers=bearer_headers(token_for_actor(actor)),
+                ping_interval=20,
+                ping_timeout=20,
+                close_timeout=10,
+                max_queue=512,
+            ) as websocket:
+                bootstrap = json.loads(await websocket.recv())
+                print(f"[{now()}] conectado al monitor MVTS como {actor}")
+                print(json.dumps(bootstrap, indent=2))
+                while True:
+                    raw = await websocket.recv()
+                    event = json.loads(raw)
+                    print(f"[{now()}] {event['event_type']} -> {json.dumps(event['payload'])}")
+        except ConnectionClosed as exc:
+            print(f"[{now()}] monitor desconectado: {exc}. Reintentando en 2 segundos...")
+            await asyncio.sleep(2)
+        except OSError as exc:
+            print(f"[{now()}] no fue posible conectar al gateway: {exc}. Reintentando en 2 segundos...")
+            await asyncio.sleep(2)
+
+
+async def change_light(actor: str, traffic_light_id: str, new_state: str, changed_by: str) -> None:
+    async with httpx.AsyncClient(base_url=GATEWAY_URL, timeout=5.0) as client:
         response = await client.post(
             "/api/traffic-lights/change",
-            headers={"x-api-token": API_TOKEN},
+            headers=bearer_headers(token_for_actor(actor)),
             json={
                 "traffic_light_id": traffic_light_id,
                 "new_state": new_state,
                 "changed_by": changed_by,
             },
         )
-        print(response.json())
+        print(response.status_code)
+        print(response.text)
 
 
-async def summary() -> None:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+async def summary(actor: str) -> None:
+    async with httpx.AsyncClient(base_url=GATEWAY_URL, timeout=5.0) as client:
         response = await client.get(
-            "/api/reports/summary", headers={"x-api-token": API_TOKEN}
+            "/api/reports/summary", headers=bearer_headers(token_for_actor(actor))
         )
+        print(response.status_code)
         print(json.dumps(response.json(), indent=2))
 
 
-async def material_report(period: str) -> None:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+async def material_report(actor: str, period: str) -> None:
+    async with httpx.AsyncClient(base_url=GATEWAY_URL, timeout=5.0) as client:
         response = await client.get(
             "/api/reports/material",
             params={"period": period},
-            headers={"x-api-token": API_TOKEN},
+            headers=bearer_headers(token_for_actor(actor)),
         )
-        print(json.dumps(response.json(), indent=2))
+        print(response.status_code)
+        print(response.text)
 
 
-async def congestions_report() -> None:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=5.0) as client:
+async def congestions_report(actor: str) -> None:
+    async with httpx.AsyncClient(base_url=GATEWAY_URL, timeout=5.0) as client:
         response = await client.get(
-            "/api/reports/congestions", headers={"x-api-token": API_TOKEN}
+            "/api/reports/congestions", headers=bearer_headers(token_for_actor(actor))
         )
-        print(json.dumps(response.json(), indent=2))
+        print(response.status_code)
+        print(response.text)
 
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description="MVTS console monitor")
+    parser.add_argument("--actor", choices=["operator", "manager"], default=os.getenv("MVTS_MONITOR_ACTOR", "operator"))
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("watch")
 
@@ -91,17 +110,18 @@ async def main() -> None:
     subparsers.add_parser("report-congestions")
 
     args = parser.parse_args()
+    actor = args.actor
 
     if args.command == "watch":
-        await watch()
+        await watch(actor)
     elif args.command == "change-light":
-        await change_light(args.traffic_light_id, args.new_state, args.by)
+        await change_light(actor, args.traffic_light_id, args.new_state, args.by)
     elif args.command == "summary":
-        await summary()
+        await summary(actor)
     elif args.command == "report-material":
-        await material_report(args.period)
+        await material_report(actor, args.period)
     elif args.command == "report-congestions":
-        await congestions_report()
+        await congestions_report(actor)
 
 
 if __name__ == "__main__":
